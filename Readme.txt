@@ -139,5 +139,3 @@ pip freeze > requirements.txt
 * Powered by **PyTorch**, **Flask**, and **HTML5**
 
 ---
-
-Would you like a downloadable `README.md` file or a GitHub project structure template?
