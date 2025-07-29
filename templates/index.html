@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pain Level Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-image: url('https://images.freecreatives.com/wp-content/uploads/2016/04/Awesome-Website-Background1.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            padding-top: 40px;
+            margin: 0;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        video, #preview {
+            width: 640px;
+            height: 480px;
+            border: 2px solid #444;
+            margin: 10px auto;
+            display: block;
+            background-color: rgba(0, 0, 0, 0.5);
+            object-fit: contain;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls, .upload-section {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0;
+            max-width: 700px;
+        }
+
+        button, .custom-file-upload {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #222;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 16px;
+        }
+
+        button:hover:not(:disabled), .custom-file-upload:hover {
+            background-color: #444;
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        #predictBtn {
+            background-color: #005f73;
+            margin-top: 20px;
+            font-size: 20px;
+            padding: 12px 25px;
+        }
+
+        #predictBtn:hover:not(:disabled) {
+            background-color: #007f99;
+        }
+
+        #result {
+            font-size: 20px;
+            color: lightgreen;
+            margin-top: 20px;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        footer {
+            margin-top: auto;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            font-size: 14px;
+            text-align: center;
+            width: 100%;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .custom-file-upload {
+            border: 1px solid #ccc;
+            display: inline-block;
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #222;
+            color: #fff;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        .custom-file-upload:hover {
+            background-color: #444;
+        }
+
+        #quote-display {
+            font-style: italic;
+            font-size: 1.1em;
+            color: #bbb;
+            margin: 20px auto;
+            max-width: 600px;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <h1>Pain Level Detection</h1>
+
+    <video id="video" autoplay></video>
+
+    <div class="controls">
+        <button id="startBtn">Start Camera</button>
+        <button id="stopBtn">Stop Camera</button>
+        <button id="snapBtn" disabled>Capture Image</button>
+        <button id="clearBtn">Clear</button>
+    </div>
+
+    <div class="upload-section">
+        <label for="uploadInput" class="custom-file-upload">Upload Image</label>
+        <input type="file" id="uploadInput" accept="image/*">
+    </div>
+
+    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+    <img id="preview" src="#" alt="Image Preview" style="display:none;">
+
+    <button id="predictBtn" disabled>Predict Pain Level</button>
+    <div id="result"></div>
+    <button id="speakBtn" style="display:none; margin-top: 10px;">🔊 Speak</button>
+
+    <div id="quote-display"></div>
+
+    <footer>
+        <p>&copy; 2025 Pain Level Detection App | Developed by SmecCse</p>
+    </footer>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const preview = document.getElementById('preview');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const snapBtn = document.getElementById('snapBtn');
+        const uploadInput = document.getElementById('uploadInput');
+        const predictBtn = document.getElementById('predictBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const resultDiv = document.getElementById('result');
+        const quoteDisplay = document.getElementById('quote-display');
+        const speakBtn = document.getElementById('speakBtn');
+
+        let stream = null;
+        let imageBlob = null;
+
+        const painQuotes = [
+            "The pain you feel today is the strength you'll feel tomorrow.",
+            "Pain is temporary. It may last a minute, or an hour, or a day, or a year, but eventually it will subside and something else will take its place. If I quit, however, it lasts forever.",
+            "Turn your wounds into wisdom.",
+            "No pain, no gain.",
+            "Sometimes you must hurt in order to know, fall in order to grow, lose in order to gain, because life’s greatest lessons are learned through pain.",
+            "The cure for pain is in the pain.",
+            "Although the world is full of suffering, it is also full of the overcoming of it.",
+            "Out of suffering have emerged the strongest souls; the most massive characters are seared with scars.",
+            "We must all suffer one of two things: the pain of discipline or the pain of regret.",
+            "Pain is inevitable. Suffering is optional."
+        ];
+
+        function displayRandomQuote() {
+            const randomIndex = Math.floor(Math.random() * painQuotes.length);
+            quoteDisplay.textContent = `"${painQuotes[randomIndex]}"`;
+        }
+
+        function updatePredictButtonState() {
+            predictBtn.disabled = !imageBlob;
+        }
+
+        function updateSnapButtonState() {
+            snapBtn.disabled = !stream;
+        }
+
+        startBtn.addEventListener('click', async () => {
+            resultDiv.innerHTML = '';
+            speakBtn.style.display = 'none';
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video.srcObject = stream;
+                video.style.display = 'block';
+                preview.style.display = 'none';
+                imageBlob = null;
+                updateSnapButtonState();
+                updatePredictButtonState();
+            } catch (err) {
+                resultDiv.innerHTML = "<span style='color: red;'>Camera access denied or not available. Please allow camera access or upload an image.</span>";
+                console.error('Error accessing camera:', err);
+                updateSnapButtonState();
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                video.style.display = 'none';
+                stream = null;
+                updateSnapButtonState();
+            }
+        });
+
+        snapBtn.addEventListener('click', () => {
+            if (!stream) {
+                alert("Please start the camera first.");
+                return;
+            }
+            resultDiv.innerHTML = '';
+            speakBtn.style.display = 'none';
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(blob => {
+                imageBlob = blob;
+                preview.src = URL.createObjectURL(blob);
+                preview.style.display = 'block';
+                video.style.display = 'none';
+                updatePredictButtonState();
+            }, 'image/jpeg');
+        });
+
+        uploadInput.addEventListener('change', e => {
+            resultDiv.innerHTML = '';
+            speakBtn.style.display = 'none';
+            const file = e.target.files[0];
+            if (file) {
+                if (!file.type.startsWith('image/')) {
+                    alert('Please upload an image file.');
+                    uploadInput.value = '';
+                    imageBlob = null;
+                    preview.style.display = 'none';
+                    updatePredictButtonState();
+                    return;
+                }
+                imageBlob = file;
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+                video.style.display = 'none';
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                    video.srcObject = null;
+                    stream = null;
+                    updateSnapButtonState();
+                }
+                updatePredictButtonState();
+            } else {
+                imageBlob = null;
+                preview.style.display = 'none';
+                updatePredictButtonState();
+            }
+        });
+
+        predictBtn.addEventListener('click', () => {
+            if (!imageBlob) {
+                alert("Please capture or upload an image first.");
+                return;
+            }
+
+            resultDiv.innerHTML = 'Predicting... <span class="loading-spinner">&#9696;</span>';
+            speakBtn.style.display = 'none';
+            predictBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('image', imageBlob);
+
+            fetch('/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().catch(() => response.text().then(text => ({ error: text })))
+                                   .then(data => Promise.reject(data.error || `Server responded with status: ${response.status}`));
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    resultDiv.innerHTML = `<span style='color: red;'>Error: ${data.error}</span>`;
+                } else {
+                    resultDiv.innerHTML = `
+                        <strong>Emotion:</strong> ${data.emotion}<br>
+                        <strong>Pain Level:</strong> ${data.pain_level}<br>
+                        <strong>Advice:</strong> ${data.suggestion}
+                    `;
+                    speakBtn.style.display = 'inline-block';
+                }
+            })
+            .catch(err => {
+                resultDiv.innerHTML = `<span style='color: red;'>Error processing image: ${err.message || err}. Please try again or check server connection.</span>`;
+                console.error('Fetch error:', err);
+            })
+            .finally(() => {
+                predictBtn.disabled = false;
+                displayRandomQuote();
+            });
+        });
+
+        clearBtn.addEventListener('click', () => {
+            resultDiv.innerHTML = '';
+            preview.src = '#';
+            preview.style.display = 'none';
+            uploadInput.value = '';
+            imageBlob = null;
+            speakBtn.style.display = 'none';
+
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+            video.style.display = 'block';
+            stream = null;
+            updatePredictButtonState();
+            updateSnapButtonState();
+            displayRandomQuote();
+        });
+
+        speakBtn.addEventListener('click', () => {
+            const text = resultDiv.textContent;
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 1;
+                utterance.pitch = 1;
+                utterance.lang = 'en-US';
+                window.speechSynthesis.speak(utterance);
+            } else {
+                alert("Your browser does not support speech synthesis.");
+            }
+        });
+
+        updatePredictButtonState();
+        updateSnapButtonState();
+        video.style.display = 'block';
+        displayRandomQuote();
+    </script>
+</body>
+</html>
